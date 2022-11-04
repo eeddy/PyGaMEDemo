@@ -1,6 +1,8 @@
 import pygame
-from pygame.locals import *
 import random
+import socket
+import time
+from pygame.locals import *
 
 class SnakeGame:
     def __init__(self):
@@ -28,18 +30,44 @@ class SnakeGame:
         self.snake_green = (5, 255, 0)
         self.head_blue = (0, 133, 255)
         self.red = (255, 0, 0)
-    
+
+        # Socket for reading EMG
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) 
+        self.sock.bind(('127.0.0.1', 12346))
+
     def generate_target(self):
         x = random.randrange(20, self.width-20) 
         y = random.randrange(20, self.height-20) 
         self.target[0] = x - x % self.movement
         self.target[1] = y - y % self.movement
     
+    def handle_emg(self):
+        data, _ = self.sock.recvfrom(1024)
+        data = str(data.decode("utf-8"))
+        if data:
+            input_class = float(data.split(' ')[0])
+            # 0 = Hand Closed = down
+            if input_class == 0:
+                self.previous_key_presses.append("down")
+            # 1 = Hand Open
+            elif input_class == 1:
+                self.previous_key_presses.append("up")
+            # 3 = Extension 
+            elif input_class == 3:
+                self.previous_key_presses.append("right")
+            # 4 = Flexion
+            elif input_class == 4:
+                self.previous_key_presses.append("left")
+            else:
+                return
+            
+            self.move_snake()
+
     def handle_movement(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False 
-            
+                
             # Listen for key presses:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
@@ -52,23 +80,31 @@ class SnakeGame:
                     self.previous_key_presses.append("down")
                 else:
                     return 
-                
-                # Move head 
-                self.move(self.previous_key_presses[-1], self.snake_head)
 
-                # Move the snake body 
-                for i in range(0, len(self.snake_body)):
-                    self.move(self.previous_key_presses[-(2+i)], self.snake_body[i])
+                self.move_snake()
+    
+    def move_snake(self):    
+        # Move head 
+        self.move(self.previous_key_presses[-1], self.snake_head)
+        # Move the snake body 
+        for i in range(0, len(self.snake_body)):
+            self.move(self.previous_key_presses[-(2+i)], self.snake_body[i])
 
     def move(self, direction, block):
+        block_temp = block.copy()
         if direction == "left":
-            block[0] -= self.movement
+            block_temp[0] -= self.movement
         elif direction == "right":
-            block[0] += self.movement
+            block_temp[0] += self.movement
         elif direction == "up":
-            block[1] -= 20
+            block_temp[1] -= 20
         elif direction == "down":
-            block[1] += 20
+            block_temp[1] += 20
+        
+        # Check boundaries
+        if (block_temp[0] > 0 and block_temp[0] < self.width and block_temp[1] > 0 and block_temp[1] < self.height):
+            block[0] = block_temp[0]
+            block[1] = block_temp[1]
 
     def grow_snake(self):
         x = self.snake_head[0]
@@ -91,7 +127,14 @@ class SnakeGame:
         self.snake_body.append([x,y])
 
     def run_game(self):
-        while self.running:
+        while self.running: 
+            # Fill the background with black
+            self.window.fill((233, 233, 233))
+
+            # Listen for movement events
+            self.handle_movement()
+            self.handle_emg()
+
             # Check for collision between snake and head
             snake = Rect(self.snake_head[0], self.snake_head[1], 20, 20)
             target = Rect(self.target[0], self.target[1], 20, 20)
@@ -99,12 +142,6 @@ class SnakeGame:
                 self.generate_target()
                 self.grow_snake()
                 self.score += 1
-            
-            # Fill the background with black
-            self.window.fill((233, 233, 233))
-
-            # Listen for movement events
-            self.handle_movement()
 
             # Draw Snake
             pygame.draw.rect(self.window, self.head_blue, snake, border_radius=2)
@@ -123,7 +160,3 @@ class SnakeGame:
             self.clock.tick(30)
 
         pygame.quit()
-
-if __name__ == "__main__":
-    sg = SnakeGame()
-    sg.run_game()
