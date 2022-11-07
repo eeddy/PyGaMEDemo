@@ -1,5 +1,5 @@
 import multiprocessing
-from myo_streamer import stream_myo
+from streamers import stream_myo
 from tkinter import *
 from snake_game import SnakeGame
 from unb_emg_toolbox.training_ui import TrainingUI
@@ -34,7 +34,7 @@ class Menu:
         # Label 
         Label(self.window, font=("Arial bold", 20), text = 'UNB EMG Toolbox - Game Demo').pack(pady=(10,20))
         # Train Model Button
-        Button(self.window, font=("Arial", 18), text = 'Train Model', command=self.launch_training).pack(pady=(0,20))
+        Button(self.window, font=("Arial", 18), text = 'Get Training Data', command=self.launch_training).pack(pady=(0,20))
         # Play Snake Button
         Button(self.window, font=("Arial", 18), text = 'Play Snake', command=self.play_snake).pack()
 
@@ -54,13 +54,6 @@ class Menu:
         self.initialize_ui()
 
     def set_up_classifier(self):
-        """This is a simple setup for an online category. The steps are:
-        
-        1. Create offline data handler to extract training data.
-        2. Extract features from the training data.
-        3. Create a dataset to pass into the OnlineEMGClassifier.
-        4. Create online classifier and stream data.
-        """
         WINDOW_SIZE = 100 
         WINDOW_INCREMENT = 50
 
@@ -93,8 +86,8 @@ class Menu:
 
         # Step 4: Create online EMG classifier and start classifying.
         self.classifier = OnlineEMGClassifier(model="LDA", data_set=data_set, num_channels=8, window_size=WINDOW_SIZE, window_increment=WINDOW_INCREMENT, 
-                online_data_handler=self.odh, features=feature_list, rejection_type='CONFIDENCE', rejection_threshold=0.97)
-        self.classifier.run(block=False) # block set to false so it will run in a seperate process
+                online_data_handler=self.odh, features=feature_list, rejection_type='CONFIDENCE', rejection_threshold=0.95)
+        self.classifier.run(block=False) # block set to false so it will run in a seperate process.
 
     def on_closing(self):
         # Clean up all the processes that have been started

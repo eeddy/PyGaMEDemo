@@ -1,7 +1,6 @@
 import pygame
 import random
 import socket
-import time
 from pygame.locals import *
 
 class SnakeGame:
