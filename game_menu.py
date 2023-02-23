@@ -1,12 +1,11 @@
-import multiprocessing
 from tkinter import *
 from snake_game import SnakeGame
-from libemg import screen_guided_training
+from libemg.screen_guided_training import ScreenGuidedTraining
 from libemg.data_handler import OnlineDataHandler, OfflineDataHandler
 from libemg.streamers import myo_streamer
 from libemg.utils import make_regex
 from libemg.feature_extractor import FeatureExtractor
-from libemg.emg_classifier import OnlineEMGClassifier
+from libemg.emg_classifier import OnlineEMGClassifier, EMGClassifier
 
 class Menu:
     def __init__(self):
@@ -15,7 +14,7 @@ class Menu:
 
         # Create online data handler to listen for the data
         self.odh = OnlineDataHandler()
-        self.odh.get_data()
+        self.odh.start_listening()
 
         self.classifier = None
 
@@ -50,7 +49,9 @@ class Menu:
     def launch_training(self):
         self.window.destroy()
         # Launch training ui
-        screen_guided_training(num_reps=1, rep_time=5, rep_folder="classes/", output_folder="data/", data_handler=self.odh)
+        training_ui = ScreenGuidedTraining()
+        training_ui.download_gestures([1,2,3,4,5], "images/")
+        training_ui.launch_training(self.odh, 2, 3, "images/", "data/", 1)
         self.initialize_ui()
 
     def set_up_classifier(self):
@@ -70,12 +71,12 @@ class Menu:
             "classes_regex": classes_regex
         }
 
-        odh = OfflineDataHandler()
-        odh.get_data(folder_location=dataset_folder, filename_dic=dic, delimiter=",")
-        train_windows, train_metadata = odh.parse_windows(WINDOW_SIZE, WINDOW_INCREMENT)
+        offline_dh = OfflineDataHandler()
+        offline_dh.get_data(folder_location=dataset_folder, filename_dic=dic, delimiter=",")
+        train_windows, train_metadata = offline_dh.parse_windows(WINDOW_SIZE, WINDOW_INCREMENT)
 
         # Step 2: Extract features from offline data
-        fe = FeatureExtractor(num_channels=8)
+        fe = FeatureExtractor()
         feature_list = fe.get_feature_groups()['HTD']
         training_features = fe.extract_features(feature_list, train_windows)
 
@@ -84,14 +85,17 @@ class Menu:
         data_set['training_features'] = training_features
         data_set['training_labels'] = train_metadata['classes']
 
-        # Step 4: Create online EMG classifier and start classifying.
-        self.classifier = OnlineEMGClassifier(model="LDA", data_set=data_set, num_channels=8, window_size=WINDOW_SIZE, window_increment=WINDOW_INCREMENT, 
-                online_data_handler=self.odh, features=feature_list, rejection_type='CONFIDENCE', rejection_threshold=0.95)
+        # Step 4: Create the EMG Classifier
+        o_classifier = EMGClassifier()
+        o_classifier.fit(model="LDA", feature_dictionary=data_set)
+
+        # Step 5: Create online EMG classifier and start classifying.
+        self.classifier = OnlineEMGClassifier(o_classifier, WINDOW_SIZE, WINDOW_INCREMENT, self.odh, feature_list)
         self.classifier.run(block=False) # block set to false so it will run in a seperate process.
 
     def on_closing(self):
         # Clean up all the processes that have been started
-        self.odh.stop_data()
+        self.odh.stop_listening()
         self.window.destroy()
 
 if __name__ == "__main__":
