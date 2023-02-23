@@ -1,25 +1,25 @@
 import multiprocessing
-from streamers import stream_myo
 from tkinter import *
 from snake_game import SnakeGame
-from unb_emg_toolbox.training_ui import TrainingUI
-from unb_emg_toolbox.data_handler import OnlineDataHandler, OfflineDataHandler
-from unb_emg_toolbox.utils import make_regex
-from unb_emg_toolbox.feature_extractor import FeatureExtractor
-from unb_emg_toolbox.emg_classifier import OnlineEMGClassifier
+from libemg import screen_guided_training
+from libemg.data_handler import OnlineDataHandler, OfflineDataHandler
+from libemg.streamers import myo_streamer
+from libemg.utils import make_regex
+from libemg.feature_extractor import FeatureExtractor
+from libemg.emg_classifier import OnlineEMGClassifier
 
 class Menu:
     def __init__(self):
         # Myo Streamer - start streaming the myo data 
-        self.myo = multiprocessing.Process(target=stream_myo, daemon=True)
-        self.myo.start()
+        myo_streamer()
 
         # Create online data handler to listen for the data
-        self.odh = OnlineDataHandler(emg_arr=True)
+        self.odh = OnlineDataHandler()
         self.odh.get_data()
 
         self.classifier = None
 
+        # UI related initialization
         self.window = None
         self.initialize_ui()
         self.window.mainloop()
@@ -32,9 +32,9 @@ class Menu:
         self.window.geometry("500x200")
 
         # Label 
-        Label(self.window, font=("Arial bold", 20), text = 'UNB EMG Toolbox - Game Demo').pack(pady=(10,20))
+        Label(self.window, font=("Arial bold", 20), text = 'LibEMG - Snake Demo').pack(pady=(10,20))
         # Train Model Button
-        Button(self.window, font=("Arial", 18), text = 'Get Training Data', command=self.launch_training).pack(pady=(0,20))
+        Button(self.window, font=("Arial", 18), text = 'Train Model', command=self.launch_training).pack(pady=(0,20))
         # Play Snake Button
         Button(self.window, font=("Arial", 18), text = 'Play Snake', command=self.play_snake).pack()
 
@@ -50,7 +50,7 @@ class Menu:
     def launch_training(self):
         self.window.destroy()
         # Launch training ui
-        TrainingUI(num_reps=1, rep_time=5, rep_folder="classes/", output_folder="data/", data_handler=self.odh)
+        screen_guided_training(num_reps=1, rep_time=5, rep_folder="classes/", output_folder="data/", data_handler=self.odh)
         self.initialize_ui()
 
     def set_up_classifier(self):
@@ -91,7 +91,6 @@ class Menu:
 
     def on_closing(self):
         # Clean up all the processes that have been started
-        self.myo.terminate()
         self.odh.stop_data()
         self.window.destroy()
 
